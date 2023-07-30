@@ -777,8 +777,11 @@ contract Deploy is Deployer {
         address addr = mustGetAddress("HyperlaneDefaultIsm");
         LegacyMultisigIsm ism = LegacyMultisigIsm(addr);
 
-        ism.enrollValidator(uint32(cfg.l2ChainID()), 0xF0A00BfcffB30a8aFc46b3C709dC5895BBA34E59);
-        ism.setThreshold(uint32(cfg.l2ChainID()), 1);
+        for (uint256 i = 0; i < len(cfg.hyperlaneValidators); i++) {
+            ism.enrollValidator(uint32(cfg.l2ChainID()), cfg.hyperlaneValidators[i]);
+        }
+        ism.setThreshold(uint32(cfg.l2ChainID()), len(cfg.hyperlaneValidators));
+        console.log("LegacyMultisigIsm enrolled %s validators", len(cfg.hyperlaneValidators));
     }
 
     /// @notice Transfer ownership of the ProxyAdmin contract to the final system owner

@@ -255,17 +255,14 @@ abstract contract StandardBridge {
         require(success, "StandardBridge: ETH transfer failed");
     }
 
-    /// @notice Finalizes an ERC20 bridge on this chain. Can only be triggered by the other
-    ///         StandardBridge contract on the remote chain.
+    /// @notice Release or mint tokens on the local chain
     /// @param _localToken  Address of the ERC20 on this chain.
     /// @param _remoteToken Address of the corresponding token on the remote chain.
-    /// @param _from        Address of the sender.
     /// @param _to          Address of the receiver.
     /// @param _amount      Amount of the ERC20 being bridged.
     function _withdrawOrMintToken(
         address _localToken,
         address _remoteToken,
-        address _from,
         address _to,
         uint256 _amount
     ) internal {
@@ -300,7 +297,7 @@ abstract contract StandardBridge {
         uint256 _amount,
         bytes calldata _extraData
     ) public onlyOtherBridge {
-        _withdrawOrMintToken(_localToken, _remoteToken, _from, _to, _amount);
+        _withdrawOrMintToken(_localToken, _remoteToken, _to, _amount);
 
         // Emit the correct events. By default this will be ERC20BridgeFinalized, but child
         // contracts may override this function in order to emit legacy events as well.
@@ -344,16 +341,15 @@ abstract contract StandardBridge {
         );
     }
 
-    /// @notice Sends ERC20 tokens to a receiver's address on the other chain
+    /// @notice Burn or lock up tokens on the local chain
     /// @param _localToken  Address of the ERC20 on this chain.
     /// @param _remoteToken Address of the corresponding token on the remote chain.
-    /// @param _to          Address of the receiver.
+    /// @param _from         Address of the receiver.
     /// @param _amount      Amount of local tokens to deposit.
     function _depositOrBurnToken(
         address _localToken,
         address _remoteToken,
         address _from,
-        address _to,
         uint256 _amount
     ) internal {
         if (_isOptimismMintableERC20(_localToken)) {
@@ -387,7 +383,7 @@ abstract contract StandardBridge {
         uint32 _minGasLimit,
         bytes memory _extraData
     ) internal {
-        _depositOrBurnToken(_localToken, _remoteToken, _from, _to, _amount);
+        _depositOrBurnToken(_localToken, _remoteToken, _from, _amount);
 
         // Emit the correct events. By default this will be ERC20BridgeInitiated, but child
         // contracts may override this function in order to emit legacy events as well.

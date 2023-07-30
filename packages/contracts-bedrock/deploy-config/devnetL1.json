@@ -45,5 +45,6 @@
   "l1StartingBlockTag": "earliest",
   "l2GenesisRegolithTimeOffset": "0x0",
   "faultGameAbsolutePrestate": 140,
-  "faultGameMaxDepth": 4
+  "faultGameMaxDepth": 4,
+  "hyperlaneValidators": ["0xF0A00BfcffB30a8aFc46b3C709dC5895BBA34E59"]
 }

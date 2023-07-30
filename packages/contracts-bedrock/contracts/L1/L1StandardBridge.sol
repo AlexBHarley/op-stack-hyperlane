@@ -235,7 +235,7 @@ contract L1StandardBridge is StandardBridge, Semver, AbstractRoutingIsm {
 
     function decodeCalldata(bytes calldata _messageBody)
         public
-        view
+        pure
         returns (bytes4, bytes memory)
     {
         bytes4 _selector = bytes4(_messageBody[:4]);
@@ -267,8 +267,7 @@ contract L1StandardBridge is StandardBridge, Semver, AbstractRoutingIsm {
             ism = withdrawalIsms[address(0)];
         }
 
-        require(ism != address(0), "!ism");
-
+        // address(0) will fallback to the Mailbox's default ISM
         return IInterchainSecurityModule(ism);
     }
 
@@ -283,23 +282,14 @@ contract L1StandardBridge is StandardBridge, Semver, AbstractRoutingIsm {
         (bytes4 _selector, bytes memory _calldata) = this.decodeCalldata(_messageBody);
 
         if (_selector == this.finalizeBridgeERC20.selector) {
-            (
-                address _localToken,
-                address _remoteToken,
-                address _from,
-                address _to,
-                uint256 _amount,
-                bytes memory _extraData
-            ) = abi.decode(_calldata, (address, address, address, address, uint256, bytes));
-            _withdrawOrMintToken(_localToken, _remoteToken, _from, _to, _amount);
+            (address _localToken, address _remoteToken, , address _to, uint256 _amount) = abi
+                .decode(_calldata, (address, address, address, address, uint256));
+            _withdrawOrMintToken(_localToken, _remoteToken, _to, _amount);
             return;
         }
 
         if (_selector == this.finalizeBridgeETH.selector) {
-            (address _from, address _to, uint256 _amount, bytes memory _extraData) = abi.decode(
-                _calldata,
-                (address, address, uint256, bytes)
-            );
+            (, address _to, uint256 _amount) = abi.decode(_calldata, (address, address, uint256));
             bool success = SafeCall.call(_to, gasleft(), _amount, hex"");
             require(success, "L1StandardBridge: ETH transfer failed");
             return;

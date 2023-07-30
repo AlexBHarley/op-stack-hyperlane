@@ -187,7 +187,7 @@ contract L2StandardBridge is StandardBridge, Semver {
         } else {
             address l1Token = OptimismMintableERC20(_l2Token).l1Token();
             if (mailboxWithdrawalsEnabled[_l2Token]) {
-                _depositOrBurnToken(_l2Token, l1Token, _from, _to, _amount);
+                _depositOrBurnToken(_l2Token, l1Token, _from, _amount);
                 MAILBOX.dispatch(
                     L1_DOMAIN,
                     TypeCasts.addressToBytes32(address(OTHER_BRIDGE)),

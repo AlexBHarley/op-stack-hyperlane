@@ -103,7 +103,7 @@ def devnet_prestate(paths):
     wait_for_rpc_server('127.0.0.1:9545')
 
     log.info('Bringing up the services.')
-    run_command(['docker-compose', 'up', '-d', 'op-proposer', 'op-batcher'], cwd=paths.ops_bedrock_dir, env={
+    run_command(['docker-compose', 'up', '-d', 'op-proposer', 'op-batcher', 'hyperlane-relayer', 'hyperlane-validator'], cwd=paths.ops_bedrock_dir, env={
         'PWD': paths.ops_bedrock_dir,
         'L2OO_ADDRESS': '0x6900000000000000000000000000000000000000'
     })
@@ -167,6 +167,8 @@ def devnet_deploy(paths):
 
         sdk_addresses['L1CrossDomainMessenger'] = addresses['L1CrossDomainMessengerProxy']
         sdk_addresses['L1StandardBridge'] = addresses['L1StandardBridgeProxy']
+        sdk_addresses['Mailbox'] = addresses['MailboxProxy']
+        sdk_addresses['HyperlaneOptimismMessageHook'] = addresses['HyperlaneOptimismMessageHookProxy']
         sdk_addresses['OptimismPortal'] = addresses['OptimismPortalProxy']
         sdk_addresses['L2OutputOracle'] = addresses['L2OutputOracleProxy']
         write_json(paths.addresses_json_path, addresses)
@@ -199,11 +201,22 @@ def devnet_deploy(paths):
     wait_for_rpc_server('127.0.0.1:9545')
 
     log.info('Bringing up everything else.')
-    run_command(['docker-compose', 'up', '-d', 'op-node', 'op-proposer', 'op-batcher'], cwd=paths.ops_bedrock_dir, env={
+    run_command(['docker-compose', 'up', '-d', 'op-node', 'op-proposer', 'op-batcher', 'hyperlane-relayer', 'hyperlane-validator'], cwd=paths.ops_bedrock_dir, env={
         'PWD': paths.ops_bedrock_dir,
         'L2OO_ADDRESS': addresses['L2OutputOracleProxy'],
         'SEQUENCER_BATCH_INBOX_ADDRESS': rollup_config['batch_inbox_address']
     })
+
+    # fund some addresses
+
+    validator_address = '0xF0A00BfcffB30a8aFc46b3C709dC5895BBA34E59'
+    validator_private_key = '0xb6f7de36f1e4f78da5442040ee2d1f1fce02e018bc3ad8c120d036439359d8f7'
+    relayer_address = '0x21b24CD7eD8aEAA70dcd0b42d3eD0e03CeDb4aC7'
+    relayer_private_key = '0xfb0fe9ae7b7eb684b7fef4d0e9e625cdc61c2bd423207d9c61787d7e6e92526e'
+
+    run_command(['cast', 'send', validator_address, '--value', '100ether', '--rpc-url', 'http://localhost:9545', '--private-key', private_key])
+    run_command(['cast', 'send', relayer_address, '--value', '100ether', '--rpc-url', 'http://localhost:8545', '--private-key', private_key])
+    run_command(['cast', 'send', relayer_address, '--value', '100ether', '--rpc-url', 'http://localhost:9545', '--private-key', private_key])
 
     log.info('Devnet ready.')
 

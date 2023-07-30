@@ -23,7 +23,7 @@ importers:
         version: 7.18.2(@babel/core@7.22.5)(eslint@8.43.0)
       '@nrwl/nx-cloud':
         specifier: latest
-        version: 16.0.5
+        version: 16.1.0
       '@types/chai':
         specifier: ^4.2.18
         version: 4.2.21
@@ -252,6 +252,12 @@ importers:
 
   packages/contracts-bedrock:
     dependencies:
+      '@eth-optimism/contracts':
+        specifier: 0.6.0
+        version: 0.6.0(ethers@5.7.1)
+      '@hyperlane-xyz/core':
+        specifier: ^1.4.2
+        version: 1.4.2
       '@openzeppelin/contracts':
         specifier: 4.7.3
         version: 4.7.3
@@ -2076,6 +2082,26 @@ packages:
     engines: {node: '>=6.9.0'}
     dev: true
 
+  /@hyperlane-xyz/core@1.4.2:
+    resolution: {integrity: sha512-nr3+n77jaagZ0Wa/jROMnuSHoZWUDzkCnOMCP+5U1UblUdGZAZID9dZUaf/DapjGcgFdiDVhttbQ9Y1jPxXqoA==}
+    dependencies:
+      '@hyperlane-xyz/utils': 1.4.2
+      '@openzeppelin/contracts': 4.9.2
+      '@openzeppelin/contracts-upgradeable': 4.9.2
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+    dev: false
+
+  /@hyperlane-xyz/utils@1.4.2:
+    resolution: {integrity: sha512-9D9XGYJ/evgxF+mkGBTo0pzkp0CN5+yW874BfS1CR0NIlo6OTC/BwYjPVv7ZTZPoaPlP+LJhGM0M5hGJNZ1tMw==}
+    dependencies:
+      ethers: 5.7.2
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+    dev: false
+
   /@isaacs/cliui@8.0.2:
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
     engines: {node: '>=12'}
@@ -2741,10 +2767,10 @@ packages:
       tslib: 2.6.0
     dev: true
 
-  /@nrwl/nx-cloud@16.0.5:
-    resolution: {integrity: sha512-1p82ym8WE9ziejwgPslstn19iV/VkHfHfKr/5YOnfCHQS+NxUf92ogcYhHXtqWLblVZ9Zs4W4pkSXK4e04wCmQ==}
+  /@nrwl/nx-cloud@16.1.0:
+    resolution: {integrity: sha512-OFjbSqdCuZq9KRYU/mOlIN8SYLZREsLlZYqYpObZqXJ5meUgBDJbUSwRweUSUvt73fgRixLEau2jPysiLHKxSQ==}
     dependencies:
-      nx-cloud: 16.0.5
+      nx-cloud: 16.1.0
     transitivePeerDependencies:
       - debug
     dev: true
@@ -2993,8 +3019,16 @@ packages:
   /@openzeppelin/contracts-upgradeable@4.7.3:
     resolution: {integrity: sha512-+wuegAMaLcZnLCJIvrVUDzA9z/Wp93f0Dla/4jJvIhijRrPabjQbZe6fWiECLaJyfn5ci9fqf9vTw3xpQOad2A==}
 
+  /@openzeppelin/contracts-upgradeable@4.9.2:
+    resolution: {integrity: sha512-siviV3PZV/fHfPaoIC51rf1Jb6iElkYWnNYZ0leO23/ukXuvOyoC/ahy8jqiV7g+++9Nuo3n/rk5ajSN/+d/Sg==}
+    dev: false
+
   /@openzeppelin/contracts@4.7.3:
     resolution: {integrity: sha512-dGRS0agJzu8ybo44pCIf3xBaPQN/65AIXNgK8+4gzKd5kbvlqyxryUYVLJv7fK98Seyd2hDZzVEHSWAh0Bt1Yw==}
+
+  /@openzeppelin/contracts@4.9.2:
+    resolution: {integrity: sha512-mO+y6JaqXjWeMh9glYVzVu8HYPGknAAnWyxTRhGeckOruyXQMNnlcW6w/Dx9ftLeIQk6N+ZJFuVmTwF7lEIFrg==}
+    dev: false
 
   /@parcel/watcher@2.0.4:
     resolution: {integrity: sha512-cTDi+FUDBIUOBKEtj+nhiJ71AZVlkAsQFuGQTun5tV9mwQBQgZvhCzG+URPQc8myeN32yRVZEfVAPCs1RW+Jvg==}
@@ -8645,6 +8679,44 @@ packages:
       - bufferutil
       - utf-8-validate
 
+  /ethers@5.7.2:
+    resolution: {integrity: sha512-wswUsmWo1aOK8rR7DIKiWSw9DbLWe6x98Jrn8wcTflTVvaXhAMaB5zGAXy0GYQEQp9iO1iSHWVyARQm11zUtyg==}
+    dependencies:
+      '@ethersproject/abi': 5.7.0
+      '@ethersproject/abstract-provider': 5.7.0
+      '@ethersproject/abstract-signer': 5.7.0
+      '@ethersproject/address': 5.7.0
+      '@ethersproject/base64': 5.7.0
+      '@ethersproject/basex': 5.7.0
+      '@ethersproject/bignumber': 5.7.0
+      '@ethersproject/bytes': 5.7.0
+      '@ethersproject/constants': 5.7.0
+      '@ethersproject/contracts': 5.7.0
+      '@ethersproject/hash': 5.7.0
+      '@ethersproject/hdnode': 5.7.0
+      '@ethersproject/json-wallets': 5.7.0
+      '@ethersproject/keccak256': 5.7.0
+      '@ethersproject/logger': 5.7.0
+      '@ethersproject/networks': 5.7.1
+      '@ethersproject/pbkdf2': 5.7.0
+      '@ethersproject/properties': 5.7.0
+      '@ethersproject/providers': 5.7.2
+      '@ethersproject/random': 5.7.0
+      '@ethersproject/rlp': 5.7.0
+      '@ethersproject/sha2': 5.7.0
+      '@ethersproject/signing-key': 5.7.0
+      '@ethersproject/solidity': 5.7.0
+      '@ethersproject/strings': 5.7.0
+      '@ethersproject/transactions': 5.7.0
+      '@ethersproject/units': 5.7.0
+      '@ethersproject/wallet': 5.7.0
+      '@ethersproject/web': 5.7.1
+      '@ethersproject/wordlists': 5.7.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+    dev: false
+
   /ethjs-unit@0.1.6:
     resolution: {integrity: sha512-/Sn9Y0oKl0uqQuvgFk/zQgR7aw1g36qX/jzSQ5lSwlO0GigPymk4eGQfeNTD03w1dPOqfz8V77Cy43jH56pagw==}
     engines: {node: '>=6.5.0', npm: '>=3'}
@@ -13722,11 +13794,11 @@ packages:
       bn.js: 4.11.6
       strip-hex-prefix: 1.0.0
 
-  /nx-cloud@16.0.5:
-    resolution: {integrity: sha512-13P7r0aKikjBtmdZrNorwXzVPeVIV4MLEwqGY+DEG6doLBtI5KqEQk/d5B5l2dCF2BEi/LXEmLYCmf9gwbOJ+Q==}
+  /nx-cloud@16.1.0:
+    resolution: {integrity: sha512-2K5OuJ4MEDrn2solje2X+a3UxSCdfR5PIscCRQbBANyvJfl3hGJSTxz0n5xeJJX4cKcQlfAxDQFRH6DHNdTGPQ==}
     hasBin: true
     dependencies:
-      '@nrwl/nx-cloud': 16.0.5
+      '@nrwl/nx-cloud': 16.1.0
       axios: 1.1.3
       chalk: 4.1.2
       dotenv: 10.0.0

@@ -1,0 +1,50 @@
+{
+  "relaychains": "l1,l2",
+  "allowlocalcheckpointsyncers": true,
+  "chains": {
+    "l1": {
+      "name": "l1",
+      "domain": 900,
+      "addresses": {
+        "mailbox": "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0",
+        "validatorAnnounce": "0x1170456805Ee812E60F7b1Cb69eCCe33746048Ef",
+        "interchainGasPaymaster": "0x1170456805Ee812E60F7b1Cb69eCCe33746048Ef"
+      },
+      "protocol": "ethereum",
+      "finalityBlocks": 1,
+      "index": {
+        "from": 0
+      },
+      "connection": {
+        "type": "http",
+        "url": "http://localhost:8545"
+      },
+      "signer": {
+        "type": "hexKey",
+        "key": "0xfb0fe9ae7b7eb684b7fef4d0e9e625cdc61c2bd423207d9c61787d7e6e92526e"
+      }
+    },
+    "l2": {
+      "name": "l2",
+      "domain": 901,
+      "addresses": {
+        "mailbox": "0x4200000000000000000000000000000000000068",
+        "validatorAnnounce": "0x420000000000000000000000000000000000006c",
+        "interchainGasPaymaster": "0x1170456805Ee812E60F7b1Cb69eCCe33746048Ef"
+      },
+      "protocol": "ethereum",
+      "finalityBlocks": 1,
+      "index": {
+        "from": 0
+      },
+      "connection": {
+        "type": "http",
+        "url": "http://localhost:9545"
+      },
+      "signer": {
+        "type": "hexKey",
+        "key": "0xfb0fe9ae7b7eb684b7fef4d0e9e625cdc61c2bd423207d9c61787d7e6e92526e"
+      }
+    }
+  }
+}

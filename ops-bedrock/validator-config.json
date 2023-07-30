@@ -1,0 +1,36 @@
+{
+  "originchainname": "l2",
+  "reorgperiod": 1,
+  "validator": {
+    "type": "hexKey",
+    "key": "0xb6f7de36f1e4f78da5442040ee2d1f1fce02e018bc3ad8c120d036439359d8f7"
+  },
+  "checkpointsyncer": {
+    "type": "localStorage",
+    "path": "/app/validator-signatures"
+  },
+  "chains": {
+    "l2": {
+      "name": "l2",
+      "domain": 901,
+      "addresses": {
+        "mailbox": "0x4200000000000000000000000000000000000068",
+        "validatorAnnounce": "0x420000000000000000000000000000000000006c",
+        "interchainGasPaymaster": "0x1170456805Ee812E60F7b1Cb69eCCe33746048Ef"
+      },
+      "protocol": "ethereum",
+      "finalityBlocks": 1,
+      "index": {
+        "from": 0
+      },
+      "connection": {
+        "type": "http",
+        "url": "http://localhost:9545"
+      },
+      "signer": {
+        "type": "hexKey",
+        "key": "0xb6f7de36f1e4f78da5442040ee2d1f1fce02e018bc3ad8c120d036439359d8f7"
+      }
+    }
+  }
+}

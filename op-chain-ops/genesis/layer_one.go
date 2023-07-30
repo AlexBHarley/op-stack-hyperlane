@@ -196,6 +196,27 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		return nil, err
 	}
 
+	if _, err := upgradeProxy(
+		backend,
+		opts,
+		depsByName["MailboxProxy"].Address,
+		depsByName["Mailbox"].Address,
+		nil,
+	); err != nil {
+		return nil, err
+	}
+
+		if _, err := upgradeProxy(
+		backend,
+		opts,
+		depsByName["HyperlaneOptimismMessageHookProxy"].Address,
+		depsByName["HyperlaneOptimismMessageHook"].Address,
+		nil,
+	); err != nil {
+		return nil, err
+	}
+
+
 	var lastUpgradeTx *types.Transaction
 	if lastUpgradeTx, err = upgradeProxy(
 		backend,
@@ -343,6 +364,10 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 		},
 		{
 			Name: "L1StandardBridge",
+			Args: []interface{}{
+				predeploys.DevL1CrossDomainMessengerAddr,
+				config.MailboxProxy,
+			},
 		},
 		{
 			Name: "L1ERC721Bridge",
@@ -414,7 +439,8 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeployL1StandardBridge(
 			opts,
 			backend,
-			predeploys.DevL1CrossDomainMessengerAddr,
+			deployment.Args[0].(common.Address),
+			deployment.Args[1].(common.Address),
 		)
 	case "OptimismMintableERC20Factory":
 		_, tx, _, err = bindings.DeployOptimismMintableERC20Factory(

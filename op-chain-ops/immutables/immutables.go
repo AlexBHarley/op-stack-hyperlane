@@ -86,6 +86,8 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 			Name: "L2StandardBridge",
 			Args: []interface{}{
 				immutable["L2StandardBridge"]["otherBridge"],
+				immutable["L2StandardBridge"]["l1Domain"],
+				immutable["L2StandardBridge"]["mailbox"],
 			},
 		},
 		{
@@ -144,6 +146,25 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 		{
 			Name: "LegacyERC20ETH",
 		},
+		{
+			Name: "Mailbox",
+			Args: []interface{}{
+				immutable["Mailbox"]["localDomain"],
+			},
+		},
+		{
+			Name: "HyperlaneOptimismISM",
+			Args: []interface{}{
+				immutable["HyperlaneOptimismISM"]["l2Messenger"],
+			},
+		},
+		{
+			Name: "HyperlaneValidatorAnnounce",
+			Args: []interface{}{
+				immutable["HyperlaneValidatorAnnounce"]["mailbox"],
+				immutable["HyperlaneValidatorAnnounce"]["localDomain"],
+			},
+		},
 	}
 	return BuildL2(deployments)
 }
@@ -169,6 +190,7 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 	var minimumWithdrawalAmount *big.Int
 	var withdrawalNetwork uint8
 	var err error
+
 	switch deployment.Name {
 	case "GasPriceOracle":
 		_, tx, _, err = bindings.DeployGasPriceOracle(opts, backend)
@@ -186,7 +208,15 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		if !ok {
 			return nil, fmt.Errorf("invalid type for otherBridge")
 		}
-		_, tx, _, err = bindings.DeployL2StandardBridge(opts, backend, otherBridge)
+		l1Domain, ok := deployment.Args[1].(uint64)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for otherBridge")
+		}
+		mailbox, ok := deployment.Args[2].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for mailbox")
+		}
+		_, tx, _, err = bindings.DeployL2StandardBridge(opts, backend, otherBridge, uint32(l1Domain), mailbox)
 	case "L2ToL1MessagePasser":
 		// No arguments required for L2ToL1MessagePasser
 		_, tx, _, err = bindings.DeployL2ToL1MessagePasser(opts, backend)
@@ -239,6 +269,28 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeployOptimismMintableERC721Factory(opts, backend, bridge, remoteChainId)
 	case "LegacyERC20ETH":
 		_, tx, _, err = bindings.DeployLegacyERC20ETH(opts, backend)
+	case "Mailbox":
+		localDomain, ok := deployment.Args[0].(uint64)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for localDomain")
+		}
+		_, tx, _, err = bindings.DeployMailbox(opts, backend, uint32(localDomain))
+	case "HyperlaneOptimismISM":
+		l2Messenger, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for l2Messenger")
+		}
+		_, tx, _, err = bindings.DeployHyperlaneOptimismISM(opts, backend, l2Messenger)
+	case "HyperlaneValidatorAnnounce":
+		mailbox, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for mailbox")
+		}
+		localDomain, ok := deployment.Args[1].(uint64)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for localDomain")
+		}
+		_, tx, _, err = bindings.DeployHyperlaneValidatorAnnounce(opts, backend, mailbox, uint32(localDomain))
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}

@@ -101,6 +101,8 @@ type DeployConfig struct {
 	SequencerFeeVaultWithdrawalNetwork uint8 `json:"sequencerFeeVaultWithdrawalNetwork"`
 	// L1StandardBridge proxy address on L1
 	L1StandardBridgeProxy common.Address `json:"l1StandardBridgeProxy"`
+	HyperlaneOptimismMessageHookProxy common.Address `json:"hyperlaneOptimismMessageHookProxy"`
+	MailboxProxy common.Address `json:"mailboxProxy"`
 	// L1CrossDomainMessenger proxy address on L1
 	L1CrossDomainMessengerProxy common.Address `json:"l1CrossDomainMessengerProxy"`
 	// L1ERC721Bridge proxy address on L1
@@ -287,6 +289,24 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 		d.L1CrossDomainMessengerProxy = l1CrossDomainMessengerProxyDeployment.Address
 	}
 
+	if d.MailboxProxy == (common.Address{}) {
+		var MailboxProxyDeployment *hardhat.Deployment
+		MailboxProxyDeployment, err = hh.GetDeployment("MailboxProxy")
+		if err != nil {
+			return err
+		}
+		d.MailboxProxy = MailboxProxyDeployment.Address
+	}
+
+	if d.HyperlaneOptimismMessageHookProxy == (common.Address{}) {
+		var HyperlaneOptimismMessageHookProxyDeployment *hardhat.Deployment
+		HyperlaneOptimismMessageHookProxyDeployment, err = hh.GetDeployment("HyperlaneOptimismMessageHookProxy")
+		if err != nil {
+			return err
+		}
+		d.HyperlaneOptimismMessageHookProxy = HyperlaneOptimismMessageHookProxyDeployment.Address
+	}
+
 	if d.L1ERC721BridgeProxy == (common.Address{}) {
 		// There is no legacy deployment of this contract
 		l1ERC721BridgeProxyDeployment, err := hh.GetDeployment("L1ERC721BridgeProxy")
@@ -425,6 +445,8 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.
 
 	immutable["L2StandardBridge"] = immutables.ImmutableValues{
 		"otherBridge": config.L1StandardBridgeProxy,
+		"l1Domain": config.L1ChainID,
+		"mailbox": predeploys.HyperlaneMailboxAddr,
 	}
 	immutable["L2CrossDomainMessenger"] = immutables.ImmutableValues{
 		"otherMessenger": config.L1CrossDomainMessengerProxy,
@@ -451,6 +473,16 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.
 		"recipient":               config.BaseFeeVaultRecipient,
 		"minimumWithdrawalAmount": config.BaseFeeVaultMinimumWithdrawalAmount,
 		"withdrawalNetwork":       config.BaseFeeVaultWithdrawalNetwork,
+	}
+	immutable["Mailbox"] = immutables.ImmutableValues{
+		"localDomain": config.L2ChainID,
+	}
+	immutable["HyperlaneOptimismISM"] = immutables.ImmutableValues{
+		"l2Messenger": predeploys.L2CrossDomainMessengerAddr,
+	}
+	immutable["HyperlaneValidatorAnnounce"] = immutables.ImmutableValues{
+		"mailbox": predeploys.HyperlaneMailboxAddr,
+		"localDomain": config.L2ChainID,
 	}
 
 	return immutable, nil
@@ -505,6 +537,16 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	}
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,
+	}
+	storage["Mailbox"] = state.StorageValues{
+		"_owner":        config.ProxyAdminOwner,
+		"_initialized":  1,
+		"_initializing": false,
+		"_status":       1,
+		"defaultIsm":    predeploys.HyperlaneOptimismIsmAddr,
+	}
+	storage["HyperlaneOptimismISM"] = state.StorageValues{
+		"l1Hook":        config.HyperlaneOptimismMessageHookProxy,
 	}
 	return storage, nil
 }

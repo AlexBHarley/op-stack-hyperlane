@@ -71,4 +71,11 @@ library Predeploys {
 
     /// @notice Address of the GovernanceToken predeploy.
     address internal constant GOVERNANCE_TOKEN = 0x4200000000000000000000000000000000000042;
+
+    // Hyperlane
+
+    address internal constant HYPERLANE_MAILBOX = 0x4200000000000000000000000000000000000068;
+    address internal constant HYPERLANE_OPTIMISM_ISM = 0x420000000000000000000000000000000000006b;
+    address internal constant HYPERLANE_VALIDATOR_ANNOUNCE =
+        0x420000000000000000000000000000000000006c;
 }

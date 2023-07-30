@@ -41,7 +41,7 @@
   "governanceTokenOwner": "0xBcd4042DE499D14e55001CcbB24a551F3b954096",
   "eip1559Denominator": 8,
   "eip1559Elasticity": 2,
-  "l1GenesisBlockTimestamp": "0x64935846",
+  "l1GenesisBlockTimestamp": "0x64c5256d",
   "l1StartingBlockTag": "earliest",
   "l2GenesisRegolithTimeOffset": "0x0",
   "faultGameAbsolutePrestate": 140,

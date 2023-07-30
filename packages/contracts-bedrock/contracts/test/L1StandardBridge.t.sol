@@ -5,9 +5,12 @@ pragma solidity 0.8.15;
 import { stdStorage, StdStorage } from "forge-std/Test.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { Bridge_Initializer } from "./CommonTest.t.sol";
+import { NoopIsm } from "../universal/hyperlane/NoopIsm.sol";
 
 // Libraries
 import { Predeploys } from "../libraries/Predeploys.sol";
+import { Message } from "@hyperlane-xyz/core/contracts/libs/Message.sol";
+import { TypeCasts } from "@hyperlane-xyz/core/contracts/libs/TypeCasts.sol";
 
 // Target contract dependencies
 import { StandardBridge } from "../universal/StandardBridge.sol";
@@ -634,6 +637,66 @@ contract L1StandardBridge_FinalizeERC20Withdrawal_Test is Bridge_Initializer {
 
         assertEq(L1Token.balanceOf(address(L1Bridge)), 0);
         assertEq(L1Token.balanceOf(address(alice)), 100);
+    }
+}
+
+contract L1StandardBridge_MailboxWithdrawal_Test is Bridge_Initializer {
+    using stdStorage for StdStorage;
+
+    function test_ismRouting() external {
+        NoopIsm ism = new NoopIsm();
+        L1Bridge.setWithdrawalIsm(address(L1Token), address(ism));
+
+        bytes memory body = abi.encodeWithSelector(
+            L1Bridge.finalizeBridgeERC20.selector,
+            address(L1Token),
+            address(L2Token),
+            address(L2Bridge), // _from,
+            address(0), // _to,
+            uint256(1), // _amount
+            hex"" // _extraData
+        );
+        bytes memory message = abi.encodePacked(
+            uint8(0), // _version
+            uint32(0), // _nonce
+            uint32(0), // _originDomain
+            TypeCasts.addressToBytes32(address(0)), // _sender
+            uint32(0), // _destinationDomain
+            TypeCasts.addressToBytes32(address(0)), // _recipient
+            body
+        );
+
+        address routedIsm = address(L1Bridge.route(message));
+        assertEq(address(ism), routedIsm);
+    }
+
+    function test_depositsAndWithdraws() external {
+        deal(address(L1Token), alice, 1, true);
+
+        assertEq(L1Token.balanceOf(alice), 1);
+
+        vm.prank(alice);
+        L1Token.approve(address(L1Bridge), type(uint256).max);
+        vm.prank(alice);
+        L1Bridge.depositERC20(address(L1Token), address(L2Token), 1, 10000, hex"");
+
+        assertEq(L1Token.balanceOf(alice), 0);
+
+        bytes memory _body = abi.encodeWithSelector(
+            L1Bridge.finalizeBridgeERC20.selector,
+            address(L1Token),
+            address(L2Token),
+            address(L2Bridge), // _from,
+            alice, // _to,
+            uint256(1), // _amount
+            hex"" // _extraData
+        );
+        bytes32 _recipient = TypeCasts.addressToBytes32(address(L1Bridge.OTHER_BRIDGE()));
+
+        vm.prank(address(0)); // _mailbox
+        L1Bridge.handle(0, _recipient, _body);
+
+        assertEq(L1Token.balanceOf(alice), 1);
     }
 }
 

@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { IMailbox } from "@hyperlane-xyz/core/contracts/interfaces/IMailbox.sol";
+import { Message } from "@hyperlane-xyz/core/contracts/libs/Message.sol";
+import { TypeCasts } from "@hyperlane-xyz/core/contracts/libs/TypeCasts.sol";
+
 import { Predeploys } from "../libraries/Predeploys.sol";
 import { StandardBridge } from "../universal/StandardBridge.sol";
 import { Semver } from "../universal/Semver.sol";
@@ -16,6 +20,9 @@ import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
 ///         of some token types that may not be properly supported by this contract include, but are
 ///         not limited to: tokens with transfer fees, rebasing tokens, and tokens with blocklists.
 contract L2StandardBridge is StandardBridge, Semver {
+    uint32 public immutable L1_DOMAIN;
+    IMailbox public immutable MAILBOX;
+
     /// @custom:legacy
     /// @notice Emitted whenever a withdrawal from L2 to L1 is initiated.
     /// @param l1Token   Address of the token on L1.
@@ -53,10 +60,14 @@ contract L2StandardBridge is StandardBridge, Semver {
     /// @custom:semver 1.1.1
     /// @notice Constructs the L2StandardBridge contract.
     /// @param _otherBridge Address of the L1StandardBridge.
-    constructor(address payable _otherBridge)
-        Semver(1, 1, 1)
-        StandardBridge(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER), _otherBridge)
-    {}
+    constructor(
+        address payable _otherBridge,
+        uint32 _l1Domain,
+        address _mailbox
+    ) Semver(1, 1, 1) StandardBridge(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER), _otherBridge) {
+        L1_DOMAIN = _l1Domain;
+        MAILBOX = IMailbox(_mailbox);
+    }
 
     /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.
     receive() external payable override onlyEOA {
@@ -158,10 +169,52 @@ contract L2StandardBridge is StandardBridge, Semver {
         bytes memory _extraData
     ) internal {
         if (_l2Token == Predeploys.LEGACY_ERC20_ETH) {
-            _initiateBridgeETH(_from, _to, _amount, _minGasLimit, _extraData);
+            if (mailboxWithdrawalsEnabled[address(0)]) {
+                MAILBOX.dispatch(
+                    L1_DOMAIN,
+                    TypeCasts.addressToBytes32(address(OTHER_BRIDGE)),
+                    abi.encodeWithSelector(
+                        this.finalizeBridgeETH.selector,
+                        _from,
+                        _to,
+                        _amount,
+                        _extraData
+                    )
+                );
+            } else {
+                _initiateBridgeETH(_from, _to, _amount, _minGasLimit, _extraData);
+            }
         } else {
             address l1Token = OptimismMintableERC20(_l2Token).l1Token();
-            _initiateBridgeERC20(_l2Token, l1Token, _from, _to, _amount, _minGasLimit, _extraData);
+            if (mailboxWithdrawalsEnabled[_l2Token]) {
+                _depositOrBurnToken(_l2Token, l1Token, _from, _to, _amount);
+                MAILBOX.dispatch(
+                    L1_DOMAIN,
+                    TypeCasts.addressToBytes32(address(OTHER_BRIDGE)),
+                    abi.encodeWithSelector(
+                        this.finalizeBridgeERC20.selector,
+                        // Because this call will be executed on the remote chain, we reverse the order of
+                        // the remote and local token addresses relative to their order in the
+                        // finalizeBridgeERC20 function.
+                        l1Token,
+                        _l2Token,
+                        _from,
+                        _to,
+                        _amount,
+                        _extraData
+                    )
+                );
+            } else {
+                _initiateBridgeERC20(
+                    _l2Token,
+                    l1Token,
+                    _from,
+                    _to,
+                    _amount,
+                    _minGasLimit,
+                    _extraData
+                );
+            }
         }
     }
 
@@ -233,5 +286,12 @@ contract L2StandardBridge is StandardBridge, Semver {
     ) internal override {
         emit DepositFinalized(_remoteToken, _localToken, _from, _to, _amount, _extraData);
         super._emitERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
+    }
+
+    // address(0) == ETH
+    mapping(address => bool) public mailboxWithdrawalsEnabled;
+
+    function registerTokenForMailboxWithdrawals(address _localToken) public {
+        mailboxWithdrawalsEnabled[_localToken] = true;
     }
 }

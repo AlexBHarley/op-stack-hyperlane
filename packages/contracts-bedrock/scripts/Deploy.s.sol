@@ -5,6 +5,13 @@ import { Script } from "forge-std/Script.sol";
 import { Test } from "forge-std/Test.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
+import { Mailbox } from "@hyperlane-xyz/core/contracts/Mailbox.sol";
+import {
+    HyperlaneOptimismMessageHook
+} from "../contracts/hyperlane/HyperlaneOptimismMessageHook.sol";
+import {
+    LegacyMultisigIsm
+} from "@hyperlane-xyz/core/contracts/isms/multisig/LegacyMultisigIsm.sol";
 
 import { Deployer } from "./Deployer.sol";
 import { DeployConfig } from "./DeployConfig.s.sol";
@@ -18,7 +25,9 @@ import { L1ChugSplashProxy } from "../contracts/legacy/L1ChugSplashProxy.sol";
 import { ResolvedDelegateProxy } from "../contracts/legacy/ResolvedDelegateProxy.sol";
 import { L1CrossDomainMessenger } from "../contracts/L1/L1CrossDomainMessenger.sol";
 import { L2OutputOracle } from "../contracts/L1/L2OutputOracle.sol";
-import { OptimismMintableERC20Factory } from "../contracts/universal/OptimismMintableERC20Factory.sol";
+import {
+    OptimismMintableERC20Factory
+} from "../contracts/universal/OptimismMintableERC20Factory.sol";
 import { SystemConfig } from "../contracts/L1/SystemConfig.sol";
 import { ResourceMetering } from "../contracts/L1/ResourceMetering.sol";
 import { Constants } from "../contracts/libraries/Constants.sol";
@@ -48,7 +57,12 @@ contract Deploy is Deployer {
     function setUp() public override {
         super.setUp();
 
-        string memory path = string.concat(vm.projectRoot(), "/deploy-config/", deploymentContext, ".json");
+        string memory path = string.concat(
+            vm.projectRoot(),
+            "/deploy-config/",
+            deploymentContext,
+            ".json"
+        );
         cfg = new DeployConfig(path);
 
         console.log("Deploying from %s", deployScript);
@@ -70,6 +84,8 @@ contract Deploy is Deployer {
         deployOptimismMintableERC20FactoryProxy();
         deployL1ERC721BridgeProxy();
         deployDisputeGameFactoryProxy();
+        deployMailboxProxy();
+        deployHyperlaneOptimismMessageHookProxy();
 
         deployOptimismPortal();
         deployL1CrossDomainMessenger();
@@ -79,6 +95,10 @@ contract Deploy is Deployer {
         deployL1StandardBridge();
         deployL1ERC721Bridge();
         deployDisputeGameFactory();
+        deployHyperlaneDefaultIsm();
+        deployMailbox();
+        initializeMailbox();
+        deployHyperlaneOptimismMessageHook();
 
         transferAddressManagerOwnership();
 
@@ -90,6 +110,8 @@ contract Deploy is Deployer {
         initializeL1CrossDomainMessenger();
         initializeL2OutputOracle();
         initializeOptimismPortal();
+        initializeHyperlaneOptimismMessageHook();
+        initializeHyperlaneDefaultIsm();
 
         setFaultGameImplementation();
 
@@ -105,7 +127,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the AddressManager
-    function deployAddressManager() broadcast() public returns (address) {
+    function deployAddressManager() public broadcast returns (address) {
         AddressManager manager = new AddressManager();
         require(manager.owner() == msg.sender);
 
@@ -115,10 +137,8 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the ProxyAdmin
-    function deployProxyAdmin() broadcast() public returns (address) {
-        ProxyAdmin admin = new ProxyAdmin({
-            _owner: msg.sender
-        });
+    function deployProxyAdmin() public broadcast returns (address) {
+        ProxyAdmin admin = new ProxyAdmin({ _owner: msg.sender });
         require(admin.owner() == msg.sender);
 
         AddressManager addressManager = AddressManager(mustGetAddress("AddressManager"));
@@ -134,7 +154,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the L1StandardBridgeProxy
-    function deployL1StandardBridgeProxy() broadcast() public returns (address) {
+    function deployL1StandardBridgeProxy() public broadcast returns (address) {
         address proxyAdmin = mustGetAddress("ProxyAdmin");
         L1ChugSplashProxy proxy = new L1ChugSplashProxy(proxyAdmin);
 
@@ -146,12 +166,24 @@ contract Deploy is Deployer {
         return address(proxy);
     }
 
-    /// @notice Deploy the L2OutputOracleProxy
-    function deployL2OutputOracleProxy() broadcast() public returns (address) {
+    /// @notice Deploy the HyperlaneOptimismMessageHookProxy
+    function deployHyperlaneOptimismMessageHookProxy() public broadcast returns (address) {
         address proxyAdmin = mustGetAddress("ProxyAdmin");
-        Proxy proxy = new Proxy({
-            _admin: proxyAdmin
-        });
+        Proxy proxy = new Proxy({ _admin: proxyAdmin });
+
+        address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
+        require(admin == proxyAdmin);
+
+        save("HyperlaneOptimismMessageHookProxy", address(proxy));
+        console.log("HyperlaneOptimismMessageHookProxy deployed at %s", address(proxy));
+
+        return address(proxy);
+    }
+
+    /// @notice Deploy the L2OutputOracleProxy
+    function deployL2OutputOracleProxy() public broadcast returns (address) {
+        address proxyAdmin = mustGetAddress("ProxyAdmin");
+        Proxy proxy = new Proxy({ _admin: proxyAdmin });
 
         address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
         require(admin == proxyAdmin);
@@ -162,7 +194,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the L1CrossDomainMessengerProxy
-    function deployL1CrossDomainMessengerProxy() broadcast() public returns (address) {
+    function deployL1CrossDomainMessengerProxy() public broadcast returns (address) {
         AddressManager addressManager = AddressManager(mustGetAddress("AddressManager"));
         string memory contractName = "OVM_L1CrossDomainMessenger";
         ResolvedDelegateProxy proxy = new ResolvedDelegateProxy(addressManager, contractName);
@@ -181,11 +213,9 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the OptimismPortalProxy
-    function deployOptimismPortalProxy() broadcast() public returns (address) {
+    function deployOptimismPortalProxy() public broadcast returns (address) {
         address proxyAdmin = mustGetAddress("ProxyAdmin");
-        Proxy proxy = new Proxy({
-            _admin: proxyAdmin
-        });
+        Proxy proxy = new Proxy({ _admin: proxyAdmin });
 
         address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
         require(admin == proxyAdmin);
@@ -197,11 +227,9 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the OptimismMintableERC20FactoryProxy
-    function deployOptimismMintableERC20FactoryProxy() broadcast() public returns (address) {
+    function deployOptimismMintableERC20FactoryProxy() public broadcast returns (address) {
         address proxyAdmin = mustGetAddress("ProxyAdmin");
-        Proxy proxy = new Proxy({
-            _admin: proxyAdmin
-        });
+        Proxy proxy = new Proxy({ _admin: proxyAdmin });
 
         address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
         require(admin == proxyAdmin);
@@ -213,11 +241,9 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the L1ERC721BridgeProxy
-    function deployL1ERC721BridgeProxy() broadcast() public returns (address) {
+    function deployL1ERC721BridgeProxy() public broadcast returns (address) {
         address proxyAdmin = mustGetAddress("ProxyAdmin");
-        Proxy proxy = new Proxy({
-            _admin: proxyAdmin
-        });
+        Proxy proxy = new Proxy({ _admin: proxyAdmin });
 
         address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
         require(admin == proxyAdmin);
@@ -229,11 +255,9 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the SystemConfigProxy
-    function deploySystemConfigProxy() broadcast() public returns (address) {
+    function deploySystemConfigProxy() public broadcast returns (address) {
         address proxyAdmin = mustGetAddress("ProxyAdmin");
-        Proxy proxy = new Proxy({
-            _admin: proxyAdmin
-        });
+        Proxy proxy = new Proxy({ _admin: proxyAdmin });
 
         address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
         require(admin == proxyAdmin);
@@ -245,12 +269,10 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the DisputeGameFactoryProxy
-    function deployDisputeGameFactoryProxy() broadcast() public returns (address) {
+    function deployDisputeGameFactoryProxy() public broadcast returns (address) {
         if (block.chainid == 900) {
             address proxyAdmin = mustGetAddress("ProxyAdmin");
-            Proxy proxy = new Proxy({
-                _admin: proxyAdmin
-            });
+            Proxy proxy = new Proxy({ _admin: proxyAdmin });
 
             address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
             require(admin == proxyAdmin);
@@ -263,8 +285,43 @@ contract Deploy is Deployer {
         return address(0);
     }
 
+    /// @notice Deploy the L1ERC721Bridge
+    function deployL1ERC721Bridge() public broadcast returns (address) {
+        address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
+
+        L1ERC721Bridge bridge = new L1ERC721Bridge({
+            _messenger: l1CrossDomainMessengerProxy,
+            _otherBridge: Predeploys.L2_ERC721_BRIDGE
+        });
+
+        require(address(bridge.MESSENGER()) == l1CrossDomainMessengerProxy);
+        require(bridge.OTHER_BRIDGE() == Predeploys.L2_ERC721_BRIDGE);
+
+        save("L1ERC721Bridge", address(bridge));
+        console.log("L1ERC721Bridge deployed at %s", address(bridge));
+
+        return address(bridge);
+    }
+
+    /// @notice Deploy the MailboxProxy
+    function deployMailboxProxy() public broadcast returns (address) {
+        if (block.chainid == 900) {
+            address proxyAdmin = mustGetAddress("ProxyAdmin");
+            Proxy proxy = new Proxy({ _admin: proxyAdmin });
+
+            address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
+            require(admin == proxyAdmin, "admin != proxyAdmin");
+
+            save("MailboxProxy", address(proxy));
+            console.log("MailboxProxy deployed at %s", address(proxy));
+
+            return address(proxy);
+        }
+        return address(0);
+    }
+
     /// @notice Deploy the L1CrossDomainMessenger
-    function deployL1CrossDomainMessenger() broadcast() public returns (address) {
+    function deployL1CrossDomainMessenger() public broadcast returns (address) {
         address portal = mustGetAddress("OptimismPortalProxy");
         L1CrossDomainMessenger messenger = new L1CrossDomainMessenger({
             _portal: OptimismPortal(payable(portal))
@@ -279,9 +336,10 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the OptimismPortal
-    function deployOptimismPortal() broadcast() public returns (address) {
+    function deployOptimismPortal() public broadcast returns (address) {
         address l2OutputOracleProxy = mustGetAddress("L2OutputOracleProxy");
         address systemConfigProxy = mustGetAddress("SystemConfigProxy");
+        address mailboxProxy = mustGetAddress("MailboxProxy");
 
         address guardian = cfg.portalGuardian();
         if (guardian.code.length == 0) {
@@ -307,7 +365,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the L2OutputOracle
-    function deployL2OutputOracle() broadcast() public returns (address) {
+    function deployL2OutputOracle() public broadcast returns (address) {
         L2OutputOracle oracle = new L2OutputOracle({
             _submissionInterval: cfg.l2OutputOracleSubmissionInterval(),
             _l2BlockTime: cfg.l2BlockTime(),
@@ -333,9 +391,11 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the OptimismMintableERC20Factory
-    function deployOptimismMintableERC20Factory() broadcast() public returns (address) {
+    function deployOptimismMintableERC20Factory() public broadcast returns (address) {
         address l1StandardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
-        OptimismMintableERC20Factory factory = new OptimismMintableERC20Factory(l1StandardBridgeProxy);
+        OptimismMintableERC20Factory factory = new OptimismMintableERC20Factory(
+            l1StandardBridgeProxy
+        );
 
         require(factory.BRIDGE() == l1StandardBridgeProxy);
 
@@ -346,7 +406,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the DisputeGameFactory
-    function deployDisputeGameFactory() broadcast() public returns (address) {
+    function deployDisputeGameFactory() public broadcast returns (address) {
         if (block.chainid == 900) {
             DisputeGameFactory factory = new DisputeGameFactory();
             save("DisputeGameFactory", address(factory));
@@ -358,7 +418,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the SystemConfig
-    function deploySystemConfig() broadcast() public returns (address) {
+    function deploySystemConfig() public broadcast returns (address) {
         bytes32 batcherHash = bytes32(uint256(uint160(cfg.batchSenderAddress())));
 
         SystemConfig config = new SystemConfig({
@@ -393,15 +453,18 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the L1StandardBridge
-    function deployL1StandardBridge() broadcast() public returns (address) {
+    function deployL1StandardBridge() public broadcast returns (address) {
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
+        address mailboxProxy = mustGetAddress("MailboxProxy");
 
         L1StandardBridge bridge = new L1StandardBridge({
-            _messenger: payable(l1CrossDomainMessengerProxy)
+            _messenger: payable(l1CrossDomainMessengerProxy),
+            _mailbox: mailboxProxy
         });
 
         require(address(bridge.MESSENGER()) == l1CrossDomainMessengerProxy);
         require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE);
+        require(address(bridge.MAILBOX()) == mailboxProxy);
 
         save("L1StandardBridge", address(bridge));
         console.log("L1StandardBridge deployed at %s", address(bridge));
@@ -409,26 +472,44 @@ contract Deploy is Deployer {
         return address(bridge);
     }
 
-    /// @notice Deploy the L1ERC721Bridge
-    function deployL1ERC721Bridge() broadcast() public returns (address) {
+    /// @notice Deploy the Hyperlane Mailbox
+    function deployMailbox() public broadcast returns (address) {
+        Mailbox mailbox = new Mailbox(uint32(block.chainid));
+
+        save("Mailbox", address(mailbox));
+        console.log("Mailbox deployed at %s", address(mailbox));
+
+        return address(mailbox);
+    }
+
+    /// @notice Deploy the L1 ISM
+    function deployHyperlaneDefaultIsm() public broadcast returns (address) {
+        LegacyMultisigIsm ism = new LegacyMultisigIsm();
+
+        save("HyperlaneDefaultIsm", address(ism));
+        console.log("HyperlaneDefaultIsm deployed at %s", address(ism));
+
+        return address(ism);
+    }
+
+    /// @notice Deploy the Optimism hook
+    function deployHyperlaneOptimismMessageHook() public broadcast returns (address) {
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
 
-        L1ERC721Bridge bridge = new L1ERC721Bridge({
-            _messenger: l1CrossDomainMessengerProxy,
-            _otherBridge: Predeploys.L2_ERC721_BRIDGE
-        });
+        HyperlaneOptimismMessageHook hook = new HyperlaneOptimismMessageHook(
+            uint32(cfg.l2ChainID()),
+            l1CrossDomainMessengerProxy,
+            Predeploys.HYPERLANE_OPTIMISM_ISM
+        );
 
-        require(address(bridge.MESSENGER()) == l1CrossDomainMessengerProxy);
-        require(bridge.OTHER_BRIDGE() == Predeploys.L2_ERC721_BRIDGE);
+        save("HyperlaneOptimismMessageHook", address(hook));
+        console.log("HyperlaneOptimismMessageHook deployed at %s", address(hook));
 
-        save("L1ERC721Bridge", address(bridge));
-        console.log("L1ERC721Bridge deployed at %s", address(bridge));
-
-        return address(bridge);
+        return address(hook);
     }
 
     /// @notice Transfer ownership of the address manager to the ProxyAdmin
-    function transferAddressManagerOwnership() broadcast() public {
+    function transferAddressManagerOwnership() public broadcast {
         AddressManager addressManager = AddressManager(mustGetAddress("AddressManager"));
         address owner = addressManager.owner();
         address proxyAdmin = mustGetAddress("ProxyAdmin");
@@ -441,7 +522,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Initialize the DisputeGameFactory
-    function initializeDisputeGameFactory() broadcast() public {
+    function initializeDisputeGameFactory() public broadcast {
         if (block.chainid == 900) {
             ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
             address disputeGameFactoryProxy = mustGetAddress("DisputeGameFactoryProxy");
@@ -450,10 +531,7 @@ contract Deploy is Deployer {
             proxyAdmin.upgradeAndCall({
                 _proxy: payable(disputeGameFactoryProxy),
                 _implementation: disputeGameFactory,
-                _data: abi.encodeCall(
-                    DisputeGameFactory.initialize,
-                    (msg.sender)
-                )
+                _data: abi.encodeCall(DisputeGameFactory.initialize, (msg.sender))
             });
 
             string memory version = DisputeGameFactory(disputeGameFactoryProxy).version();
@@ -462,7 +540,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Initialize the SystemConfig
-    function initializeSystemConfig() broadcast() public {
+    function initializeSystemConfig() public broadcast {
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
         address systemConfigProxy = mustGetAddress("SystemConfigProxy");
         address systemConfig = mustGetAddress("SystemConfig");
@@ -504,11 +582,10 @@ contract Deploy is Deployer {
         require(resourceConfig.systemTxMaxGas == rconfig.systemTxMaxGas);
         require(resourceConfig.minimumBaseFee == rconfig.minimumBaseFee);
         require(resourceConfig.maximumBaseFee == rconfig.maximumBaseFee);
-
     }
 
     /// @notice Initialize the L1StandardBridge
-    function initializeL1StandardBridge() broadcast() public {
+    function initializeL1StandardBridge() public broadcast {
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
         address l1StandardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
         address l1StandardBridge = mustGetAddress("L1StandardBridge");
@@ -518,7 +595,10 @@ contract Deploy is Deployer {
         if (proxyType != uint256(ProxyAdmin.ProxyType.CHUGSPLASH)) {
             proxyAdmin.setProxyType(l1StandardBridgeProxy, ProxyAdmin.ProxyType.CHUGSPLASH);
         }
-        require(uint256(proxyAdmin.proxyType(l1StandardBridgeProxy)) == uint256(ProxyAdmin.ProxyType.CHUGSPLASH));
+        require(
+            uint256(proxyAdmin.proxyType(l1StandardBridgeProxy)) ==
+                uint256(ProxyAdmin.ProxyType.CHUGSPLASH)
+        );
 
         proxyAdmin.upgrade({
             _proxy: payable(l1StandardBridgeProxy),
@@ -531,11 +611,10 @@ contract Deploy is Deployer {
         L1StandardBridge bridge = L1StandardBridge(payable(l1StandardBridgeProxy));
         require(address(bridge.MESSENGER()) == l1CrossDomainMessengerProxy);
         require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE);
-
     }
 
     /// @notice Initialize the L1ERC721Bridge
-    function initializeL1ERC721Bridge() broadcast() public {
+    function initializeL1ERC721Bridge() public broadcast {
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
         address l1ERC721BridgeProxy = mustGetAddress("L1ERC721BridgeProxy");
         address l1ERC721Bridge = mustGetAddress("L1ERC721Bridge");
@@ -555,9 +634,11 @@ contract Deploy is Deployer {
     }
 
     /// @notice Ininitialize the OptimismMintableERC20Factory
-    function initializeOptimismMintableERC20Factory() broadcast() public {
+    function initializeOptimismMintableERC20Factory() public broadcast {
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
-        address optimismMintableERC20FactoryProxy = mustGetAddress("OptimismMintableERC20FactoryProxy");
+        address optimismMintableERC20FactoryProxy = mustGetAddress(
+            "OptimismMintableERC20FactoryProxy"
+        );
         address optimismMintableERC20Factory = mustGetAddress("OptimismMintableERC20Factory");
         address l1StandardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
 
@@ -566,7 +647,9 @@ contract Deploy is Deployer {
             _implementation: optimismMintableERC20Factory
         });
 
-        OptimismMintableERC20Factory factory = OptimismMintableERC20Factory(optimismMintableERC20FactoryProxy);
+        OptimismMintableERC20Factory factory = OptimismMintableERC20Factory(
+            optimismMintableERC20FactoryProxy
+        );
         string memory version = factory.version();
         console.log("OptimismMintableERC20Factory version: %s", version);
 
@@ -574,7 +657,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice initializeL1CrossDomainMessenger
-    function initializeL1CrossDomainMessenger() broadcast() public {
+    function initializeL1CrossDomainMessenger() public broadcast {
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
         address l1CrossDomainMessenger = mustGetAddress("L1CrossDomainMessenger");
@@ -584,7 +667,10 @@ contract Deploy is Deployer {
         if (proxyType != uint256(ProxyAdmin.ProxyType.RESOLVED)) {
             proxyAdmin.setProxyType(l1CrossDomainMessengerProxy, ProxyAdmin.ProxyType.RESOLVED);
         }
-        require(uint256(proxyAdmin.proxyType(l1CrossDomainMessengerProxy)) == uint256(ProxyAdmin.ProxyType.RESOLVED));
+        require(
+            uint256(proxyAdmin.proxyType(l1CrossDomainMessengerProxy)) ==
+                uint256(ProxyAdmin.ProxyType.RESOLVED)
+        );
 
         string memory contractName = "OVM_L1CrossDomainMessenger";
         string memory implName = proxyAdmin.implementationName(l1CrossDomainMessenger);
@@ -592,7 +678,8 @@ contract Deploy is Deployer {
             proxyAdmin.setImplementationName(l1CrossDomainMessengerProxy, contractName);
         }
         require(
-            keccak256(bytes(proxyAdmin.implementationName(l1CrossDomainMessengerProxy))) == keccak256(bytes(contractName))
+            keccak256(bytes(proxyAdmin.implementationName(l1CrossDomainMessengerProxy))) ==
+                keccak256(bytes(contractName))
         );
 
         proxyAdmin.upgradeAndCall({
@@ -609,7 +696,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Initialize the L2OutputOracle
-    function initializeL2OutputOracle() broadcast() public {
+    function initializeL2OutputOracle() public broadcast {
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
         address l2OutputOracleProxy = mustGetAddress("L2OutputOracleProxy");
         address l2OutputOracle = mustGetAddress("L2OutputOracle");
@@ -619,10 +706,7 @@ contract Deploy is Deployer {
             _implementation: l2OutputOracle,
             _data: abi.encodeCall(
                 L2OutputOracle.initialize,
-                (
-                    cfg.l2OutputOracleStartingBlockNumber(),
-                    cfg.l2OutputOracleStartingTimestamp()
-                )
+                (cfg.l2OutputOracleStartingBlockNumber(), cfg.l2OutputOracleStartingTimestamp())
             )
         });
 
@@ -640,7 +724,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Initialize the OptimismPortal
-    function initializeOptimismPortal() broadcast() public {
+    function initializeOptimismPortal() public broadcast {
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
         address optimismPortalProxy = mustGetAddress("OptimismPortalProxy");
         address optimismPortal = mustGetAddress("OptimismPortal");
@@ -663,8 +747,42 @@ contract Deploy is Deployer {
         require(portal.paused() == false);
     }
 
+    /// @notice Initialize the Hyperlane Mailbox
+    function initializeMailbox() public broadcast {
+        ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
+        address mailboxProxy = mustGetAddress("MailboxProxy");
+        address owner = proxyAdmin.owner();
+        address mailbox = mustGetAddress("Mailbox");
+        address defaultIsm = mustGetAddress("HyperlaneDefaultIsm");
+
+        proxyAdmin.upgradeAndCall({
+            _proxy: payable(mailboxProxy),
+            _implementation: mailbox,
+            _data: abi.encodeCall(Mailbox.initialize, (owner, defaultIsm))
+        });
+    }
+
+    /// @notice Initialize the Hyperlane Optimism message hook
+    function initializeHyperlaneOptimismMessageHook() public broadcast {
+        ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
+        address proxy = mustGetAddress("HyperlaneOptimismMessageHookProxy");
+        address owner = proxyAdmin.owner();
+        address impl = mustGetAddress("HyperlaneOptimismMessageHook");
+
+        proxyAdmin.upgrade({ _proxy: payable(proxy), _implementation: impl });
+    }
+
+    /// @notice Initialize the Hyperlane Optimism message hook
+    function initializeHyperlaneDefaultIsm() public broadcast {
+        address addr = mustGetAddress("HyperlaneDefaultIsm");
+        LegacyMultisigIsm ism = LegacyMultisigIsm(addr);
+
+        ism.enrollValidator(uint32(cfg.l2ChainID()), 0xF0A00BfcffB30a8aFc46b3C709dC5895BBA34E59);
+        ism.setThreshold(uint32(cfg.l2ChainID()), 1);
+    }
+
     /// @notice Transfer ownership of the ProxyAdmin contract to the final system owner
-    function transferProxyAdminOwnership() broadcast() public {
+    function transferProxyAdminOwnership() public broadcast {
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
         address owner = proxyAdmin.owner();
         address finalSystemOwner = cfg.finalSystemOwner();
@@ -675,9 +793,11 @@ contract Deploy is Deployer {
     }
 
     /// @notice Transfer ownership of the DisputeGameFactory contract to the final system owner
-    function transferDisputeGameFactoryOwnership() broadcast() public {
+    function transferDisputeGameFactoryOwnership() public broadcast {
         if (block.chainid == 900) {
-            DisputeGameFactory disputeGameFactory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
+            DisputeGameFactory disputeGameFactory = DisputeGameFactory(
+                mustGetAddress("DisputeGameFactoryProxy")
+            );
             address owner = disputeGameFactory.owner();
             address finalSystemOwner = cfg.finalSystemOwner();
             if (owner != finalSystemOwner) {
@@ -688,20 +808,24 @@ contract Deploy is Deployer {
     }
 
     /// @notice Sets the implementation for the `FAULT` game type in the `DisputeGameFactory`
-    function setFaultGameImplementation() broadcast() public {
+    function setFaultGameImplementation() public broadcast {
         if (block.chainid == 900) {
-            DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
+            DisputeGameFactory factory = DisputeGameFactory(
+                mustGetAddress("DisputeGameFactoryProxy")
+            );
             Claim absolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
             IBigStepper faultVm = IBigStepper(new AlphabetVM(absolutePrestate));
             if (address(factory.gameImpls(GameTypes.FAULT)) == address(0)) {
-                factory.setImplementation(GameTypes.FAULT, new FaultDisputeGame({
-                    _absolutePrestate: absolutePrestate,
-                    _maxGameDepth: cfg.faultGameMaxDepth(),
-                    _vm: faultVm
-                }));
+                factory.setImplementation(
+                    GameTypes.FAULT,
+                    new FaultDisputeGame({
+                        _absolutePrestate: absolutePrestate,
+                        _maxGameDepth: cfg.faultGameMaxDepth(),
+                        _vm: faultVm
+                    })
+                );
                 console.log("DisputeGameFactory: set `FaultDisputeGame` implementation");
             }
         }
     }
 }
-

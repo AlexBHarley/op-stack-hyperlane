@@ -1,9 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import {
+    AbstractRoutingIsm
+} from "@hyperlane-xyz/core/contracts/isms/routing/AbstractRoutingIsm.sol";
+import { IMailbox } from "@hyperlane-xyz/core/contracts/interfaces/IMailbox.sol";
+import {
+    IInterchainSecurityModule
+} from "@hyperlane-xyz/core/contracts/interfaces/IInterchainSecurityModule.sol";
+import { Message } from "@hyperlane-xyz/core/contracts/libs/Message.sol";
+import { TypeCasts } from "@hyperlane-xyz/core/contracts/libs/TypeCasts.sol";
+
 import { Predeploys } from "../libraries/Predeploys.sol";
 import { StandardBridge } from "../universal/StandardBridge.sol";
 import { Semver } from "../universal/Semver.sol";
+import { SafeCall } from "../libraries/SafeCall.sol";
 
 /// @custom:proxied
 /// @title L1StandardBridge
@@ -15,7 +26,12 @@ import { Semver } from "../universal/Semver.sol";
 ///         NOTE: this contract is not intended to support all variations of ERC20 tokens. Examples
 ///         of some token types that may not be properly supported by this contract include, but are
 ///         not limited to: tokens with transfer fees, rebasing tokens, and tokens with blocklists.
-contract L1StandardBridge is StandardBridge, Semver {
+contract L1StandardBridge is StandardBridge, Semver, AbstractRoutingIsm {
+    using Message for bytes;
+
+    IMailbox public immutable MAILBOX;
+    mapping(address => address) public withdrawalIsms;
+
     /// @custom:legacy
     /// @notice Emitted whenever a deposit of ETH from L1 into L2 is initiated.
     /// @param from      Address of the depositor.
@@ -79,10 +95,12 @@ contract L1StandardBridge is StandardBridge, Semver {
     /// @custom:semver 1.1.1
     /// @notice Constructs the L1StandardBridge contract.
     /// @param _messenger Address of the L1CrossDomainMessenger.
-    constructor(address payable _messenger)
+    constructor(address payable _messenger, address _mailbox)
         Semver(1, 1, 1)
         StandardBridge(_messenger, payable(Predeploys.L2_STANDARD_BRIDGE))
-    {}
+    {
+        MAILBOX = IMailbox(_mailbox);
+    }
 
     /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.
     receive() external payable override onlyEOA {
@@ -213,6 +231,85 @@ contract L1StandardBridge is StandardBridge, Semver {
     /// @return Address of the corresponding L2 bridge contract.
     function l2TokenBridge() external view returns (address) {
         return address(OTHER_BRIDGE);
+    }
+
+    function decodeCalldata(bytes calldata _messageBody)
+        public
+        view
+        returns (bytes4, bytes memory)
+    {
+        bytes4 _selector = bytes4(_messageBody[:4]);
+        bytes memory _calldata = _messageBody[4:];
+        return (_selector, _calldata);
+    }
+
+    /**
+     * @notice Returns the ISM responsible for verifying _message
+     * @dev Can change based on the content of _message
+     * @param _message Formatted Hyperlane message (see Message.sol).
+     * @return module The ISM to use to verify _message
+     */
+    function route(bytes calldata _message)
+        public
+        view
+        override
+        returns (IInterchainSecurityModule)
+    {
+        (bytes4 _selector, bytes memory _calldata) = this.decodeCalldata(_message.body());
+
+        address ism;
+        if (_selector == bytes4(this.finalizeBridgeERC20.selector)) {
+            address _localToken = abi.decode(_calldata, (address));
+            ism = withdrawalIsms[_localToken];
+        }
+
+        if (_selector == this.finalizeBridgeETH.selector) {
+            ism = withdrawalIsms[address(0)];
+        }
+
+        require(ism != address(0), "!ism");
+
+        return IInterchainSecurityModule(ism);
+    }
+
+    function handle(
+        uint32,
+        bytes32 _dispatcher,
+        bytes calldata _messageBody
+    ) public {
+        require(msg.sender == address(MAILBOX), "!MAILBOX");
+        require(TypeCasts.bytes32ToAddress(_dispatcher) == address(OTHER_BRIDGE), "!OTHER_BRIDGE");
+
+        (bytes4 _selector, bytes memory _calldata) = this.decodeCalldata(_messageBody);
+
+        if (_selector == this.finalizeBridgeERC20.selector) {
+            (
+                address _localToken,
+                address _remoteToken,
+                address _from,
+                address _to,
+                uint256 _amount,
+                bytes memory _extraData
+            ) = abi.decode(_calldata, (address, address, address, address, uint256, bytes));
+            _withdrawOrMintToken(_localToken, _remoteToken, _from, _to, _amount);
+            return;
+        }
+
+        if (_selector == this.finalizeBridgeETH.selector) {
+            (address _from, address _to, uint256 _amount, bytes memory _extraData) = abi.decode(
+                _calldata,
+                (address, address, uint256, bytes)
+            );
+            bool success = SafeCall.call(_to, gasleft(), _amount, hex"");
+            require(success, "L1StandardBridge: ETH transfer failed");
+            return;
+        }
+
+        revert("invalid selector");
+    }
+
+    function setWithdrawalIsm(address _localToken, address _ism) external {
+        withdrawalIsms[_localToken] = _ism;
     }
 
     /// @notice Internal function for initiating an ETH deposit.

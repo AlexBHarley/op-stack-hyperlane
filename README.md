@@ -1,3 +1,129 @@
+# op-stack-hyperlane
+
+An OP Stack Mod that bundles a [Hyperlane](https://hyperlane.xyz) ⏩ deployment into your L2. With Hyperlane now a core part your L2 you benefit from:
+
+- opt in fast token withdrawals 🔥
+- predeployed Mailbox's and associated ISMs
+  - L1 => L2 leverages an Optimism ISM that maintains the security of Ethereum
+  - L2 => L1 configured with an M of N multisig
+- default relayer and validator infrastructure
+
+See the diff with vanilla Optimism [here](https://github.com/AlexBHarley/op-stack-hyperlane/compare/op-stack-checkpoint...develop).
+
+## What's included?
+
+### Predeploys
+
+- [Mailbox](https://docs.hyperlane.xyz/docs/protocol/messaging), available at `0x4200000000000000000000000000000000000068`
+
+  Allows for bidirectional communication between the L1 and your L2 with Hyperlane
+
+- [OptimismISM](https://docs.hyperlane.xyz/docs/protocol/sovereign-consensus/hook-ism), available at `0x420000000000000000000000000000000000006b`
+
+  Allows Hyperlane messages from the L1 to your L2 to inherit the security guarantees of the L1.
+
+- [ValidatorAnnounce](https://docs.hyperlane.xyz/docs/operators/validators/setup#announcing-your-validator), available at `0x420000000000000000000000000000000000006c`
+
+  Enables Hyperlane validators to register themselves as validating withdrawals.
+
+### Infrastructure
+
+- Default ISM validators
+
+  A Multisig ISM configured with the M of N genesis validator set, leveraged for messages from L2 to L1.
+
+- Gas paymaster and relayer
+
+  A relayer configured to work with the default interchain gas paymaster.
+
+## Fast withdrawals
+
+The core functionality offered by `op-stack-hyperlane` is the ability to modularise token withdrawal security. The 7 day finalization time offered by OP Mainnet works well for the largest of transfers, but the rise of bridges that leverage other security models speaks volumes to the user experience of this.
+
+With `op-stack-hyperlane`, withdrawal security is configured on a per token basis. Meaning withdrawals finalised according to any logic you can imagine. An example that could be implemented is the following,
+
+- USDC withdrawals < $10,000 USD, 5/10 validator attestations
+- USDC withdrawals > $10,000 USD, 9/10 validator attestations
+
+For the largest of transfers, a fraud proof window could also be added to somewhat mimic the native bridge,
+
+- USDC withdrawals > $1,000,000 USD, an [AggregationISM](https://docs.hyperlane.xyz/docs/protocol/sovereign-consensus/aggregation-ism) comprising 9/10 validator attestations + an M of N 3 day fraud proof window
+
+### Demo
+
+The quicket way to familiarise yourself with this mod is to spin up the devnet and transfer some ERC20 tokens back and forth between the L1 and L2. Following along with the below commands will get you setup and running in under five minutes.
+
+We'll first setup our devnet,
+
+```
+make devnet-up-deploy
+```
+
+which will run both the L1 and L2 pieces of the rollup, super handy. After that's completed we'll set some variables to make deploying and interacting with our contracts a bit easier.
+
+```
+export L2=http://localhost:9545
+export L1=http://localhost:8545
+export PRIVATE_KEY=0xc481977dbc3300c306daad7cb02ac13930f559e799b2e4e3c0d3ad80cb0f88dc
+export FUNDED_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+ADDRESS=$(cast wallet address --private-key=$PRIVATE_KEY)
+
+cast send $ADDRESS --value 100ether --rpc-url $L2 --private-key $FUNDED_PRIVATE_KEY
+cast send $ADDRESS --value 100ether --rpc-url $L1 --private-key $FUNDED_PRIVATE_KEY
+```
+
+The `FUNDED_PRIVATE_KEY` comes from the [devnet initialisation file](bedrock-devnet/devnet/__init__.py) and gets set as the admin for a bunch of the proxy contracts. So we want to just transfer some ether to a different account which we can use for interacting with said contracts.
+
+Next we need to deploy the contracts for the token we want to transfer between chains. We'll do the rest of this walkthrough from the `contracts-bedrock` package,
+
+```
+cd packages/contracts-bedrock
+```
+
+Then run the deployment scripts,
+
+```
+forge script scripts/DeployERC20.s.sol:Deploy --private-key $PRIVATE_KEY --broadcast --rpc-url $L1
+forge script scripts/DeployMintableERC20.s.sol:Deploy --private-key $PRIVATE_KEY --broadcast --rpc-url $L2
+```
+
+These scripts deploy two sides of the same coin. On the L1 we have a normal `ERC20` contract and on the L2 we use a special `ERC20` that can only be minted by the `L2StandardBridge`.
+
+Now we can approve and deposit the tokens from our L1,
+
+```
+cast send 0x6523Fd7e1B28113aB7350B7C312b541fd4866492 "approve(address,uint256)" 0x0165878A594ca255338adfa4d48449f69242Eb8F 100000 --rpc-url $L1 --private-key $PRIVATE_KEY
+cast send 0x0165878A594ca255338adfa4d48449f69242Eb8F "depositERC20(address,address,uint256,uint32,bytes)" 0x6523Fd7e1B28113aB7350B7C312b541fd4866492 0x7c6b91D9Be155A6Db01f749217d76fF02A7227F2 1 300000 "01" --private-key $PRIVATE_KEY --rpc-url $L1
+```
+
+Before checking that they were received on the L2,
+
+````
+cast call 0x7c6b91D9Be155A6Db01f749217d76fF02A7227F2 "balanceOf(address)" "$ADDRESS" --rpc-url $L2```
+0x0000000000000000000000000000000000000000000000000000000000000001
+````
+
+At this stage we've simply transferred some tokens from L1 to L2, which is great but this functionality comes bundled with Optimism natively. We haven't done anything Hyperlane specific. Now we'll be showing how we can use Hyperlane to modularise the architecture of our deployment and enable fast withdrawals. Keep in mind that the usual withdraw, prove, finalise flow takes 7 days on OP mainnet. We want to achieve near instantaneous withdrawals.
+
+The first step is to call a function, `registerTokenForMailboxWithdrawals(address)`, on the `L2StandardBridge`. This marks the token as one that will go via the Hyperlane `Mailbox` for withdrawals as opposed to the native Optimism `CrossDomainMessenger`.
+
+```
+cast send 0x4200000000000000000000000000000000000010 "registerTokenForMailboxWithdrawals(address)" 0x7c6b91D9Be155A6Db01f749217d76fF02A7227F2 --private-key $PRIVATE_KEY --rpc-url $L2
+```
+
+Now we'll can `approve` and `withdraw` tokens from the L2,
+
+```
+cast send 0x7c6b91D9Be155A6Db01f749217d76fF02A7227F2 "approve(address,uint256)" 0x4200000000000000000000000000000000000010  --rpc-url $L2 --private-key $PRIVATE_KEY
+cast send 0x4200000000000000000000000000000000000010 "withdraw(address,uint256,uint32,bytes)" 0x7c6b91D9Be155A6Db01f749217d76fF02A7227F2 1 300000 "01" --private-key $PRIVATE_KEY --rpc-url $L2
+```
+
+Almost instantly these tokens are now available on the L1,
+
+```
+cast call 0x6523Fd7e1B28113aB7350B7C312b541fd4866492 "balanceOf(address)" $ADDRESS --rpc-url $L1 --private-key $PRIVATE_KEY
+0x00000000000000000000000000000000000000000000d3c21bcecceda1000000
+```
 
 <div align="center">
   <br />
@@ -95,11 +221,11 @@ Refer to the Directory Structure section below to understand which packages are 
 
 ### Active Branches
 
-| Branch          | Status                                                                           |
-| --------------- | -------------------------------------------------------------------------------- |
-| [master](https://github.com/ethereum-optimism/optimism/tree/master/)                   | Accepts PRs from `develop` when intending to deploy to production.                  |
-| [develop](https://github.com/ethereum-optimism/optimism/tree/develop/)                 | Accepts PRs that are compatible with `master` OR from `release/X.X.X` branches.                    |
-| release/X.X.X                                                                          | Accepts PRs for all changes, particularly those not backwards compatible with `develop` and `master`. |
+| Branch                                                                 | Status                                                                                                |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| [master](https://github.com/ethereum-optimism/optimism/tree/master/)   | Accepts PRs from `develop` when intending to deploy to production.                                    |
+| [develop](https://github.com/ethereum-optimism/optimism/tree/develop/) | Accepts PRs that are compatible with `master` OR from `release/X.X.X` branches.                       |
+| release/X.X.X                                                          | Accepts PRs for all changes, particularly those not backwards compatible with `develop` and `master`. |
 
 ### Overview
 
@@ -160,3 +286,7 @@ It's strongly recommended to avoid merging PRs into develop during an active rel
 ## License
 
 All other files within this repository are licensed under the [MIT License](https://github.com/ethereum-optimism/optimism/blob/master/LICENSE) unless stated otherwise.
+
+```
+
+```

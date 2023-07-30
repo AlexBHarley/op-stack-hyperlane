@@ -20,6 +20,9 @@ const (
 	ProxyAdmin                    = "0x4200000000000000000000000000000000000018"
 	BaseFeeVault                  = "0x4200000000000000000000000000000000000019"
 	L1FeeVault                    = "0x420000000000000000000000000000000000001a"
+	HyperlaneMailbox              = "0x4200000000000000000000000000000000000068"
+	HyperlaneOptimismIsm          = "0x420000000000000000000000000000000000006b"
+	HyperlaneValidatorAnnounce    = "0x420000000000000000000000000000000000006c"
 )
 
 var (
@@ -40,6 +43,9 @@ var (
 	ProxyAdminAddr                    = common.HexToAddress(ProxyAdmin)
 	BaseFeeVaultAddr                  = common.HexToAddress(BaseFeeVault)
 	L1FeeVaultAddr                    = common.HexToAddress(L1FeeVault)
+	HyperlaneMailboxAddr              = common.HexToAddress(HyperlaneMailbox)
+	HyperlaneOptimismIsmAddr          = common.HexToAddress(HyperlaneOptimismIsm)
+	HyperlaneValidatorAnnounceAddr    = common.HexToAddress(HyperlaneValidatorAnnounce)
 
 	Predeploys = make(map[string]*common.Address)
 )
@@ -73,4 +79,7 @@ func init() {
 	Predeploys["ProxyAdmin"] = &ProxyAdminAddr
 	Predeploys["BaseFeeVault"] = &BaseFeeVaultAddr
 	Predeploys["L1FeeVault"] = &L1FeeVaultAddr
+	Predeploys["Mailbox"] = &HyperlaneMailboxAddr
+	Predeploys["HyperlaneOptimismISM"] = &HyperlaneOptimismIsmAddr
+	Predeploys["HyperlaneValidatorAnnounce"] = &HyperlaneValidatorAnnounceAddr
 }

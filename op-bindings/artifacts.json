@@ -31,5 +31,8 @@
   "StandardBridge",
   "CrossDomainMessenger",
   "MIPS",
-  "PreimageOracle"
+  "PreimageOracle",
+  "Mailbox",
+  "HyperlaneOptimismISM",
+  "HyperlaneValidatorAnnounce"
 ]

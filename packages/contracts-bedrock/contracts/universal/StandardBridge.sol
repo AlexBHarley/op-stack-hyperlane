@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { IMailbox } from "@hyperlane-xyz/core/contracts/interfaces/IMailbox.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
@@ -26,6 +27,12 @@ abstract contract StandardBridge {
 
     /// @notice Corresponding bridge on the other domain.
     StandardBridge public immutable OTHER_BRIDGE;
+
+    /// @notice Local mailbox.
+    IMailbox public immutable MAILBOX;
+
+    /// @notice L1 setting ISMs, L2 enabling for fast withdrawals.
+    address public immutable FAST_WITHDRAWAL_OWNER;
 
     /// @custom:legacy
     /// @custom:spacer messenger
@@ -122,11 +129,26 @@ abstract contract StandardBridge {
         _;
     }
 
-    /// @param _messenger   Address of CrossDomainMessenger on this network.
-    /// @param _otherBridge Address of the other StandardBridge contract.
-    constructor(address payable _messenger, address payable _otherBridge) {
+    /// @notice Ensures that the caller is the FAST_WITHDRAWAL_OWNER.
+    modifier onlyFastWithdrawalOwner() {
+        require(msg.sender == FAST_WITHDRAWAL_OWNER, "!FAST_WITHDRAWAL_OWNER");
+        _;
+    }
+
+    /// @param _messenger           Address of CrossDomainMessenger on this network.
+    /// @param _otherBridge         Address of the other StandardBridge contract.
+    /// @param _mailbox             Address of the local Mailbox contract.
+    /// @param _fastWithdrawalOwner Address of the fast withdrawal owner.
+    constructor(
+        address payable _messenger,
+        address payable _otherBridge,
+        address _mailbox,
+        address _fastWithdrawalOwner
+    ) {
         MESSENGER = CrossDomainMessenger(_messenger);
         OTHER_BRIDGE = StandardBridge(_otherBridge);
+        MAILBOX = IMailbox(_mailbox);
+        FAST_WITHDRAWAL_OWNER = _fastWithdrawalOwner;
     }
 
     /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.

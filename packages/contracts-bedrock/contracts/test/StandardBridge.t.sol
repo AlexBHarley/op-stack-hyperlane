@@ -14,7 +14,7 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 ///         internal functions so they can be more easily tested directly.
 contract StandardBridgeTester is StandardBridge {
     constructor(address payable _messenger, address payable _otherBridge)
-        StandardBridge(_messenger, _otherBridge)
+        StandardBridge(_messenger, _otherBridge, address(0), address(0))
     {}
 
     function isOptimismMintableERC20(address _token) external view returns (bool) {

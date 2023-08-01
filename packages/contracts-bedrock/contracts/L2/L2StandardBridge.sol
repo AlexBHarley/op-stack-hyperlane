@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { IMailbox } from "@hyperlane-xyz/core/contracts/interfaces/IMailbox.sol";
 import { Message } from "@hyperlane-xyz/core/contracts/libs/Message.sol";
 import { TypeCasts } from "@hyperlane-xyz/core/contracts/libs/TypeCasts.sol";
 
@@ -21,7 +20,9 @@ import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
 ///         not limited to: tokens with transfer fees, rebasing tokens, and tokens with blocklists.
 contract L2StandardBridge is StandardBridge, Semver {
     uint32 public immutable L1_DOMAIN;
-    IMailbox public immutable MAILBOX;
+
+    /// @notice Mapping of tokens enabled for fast withdrawals via the Mailbox contract
+    mapping(address => bool) public mailboxWithdrawalsEnabled;
 
     /// @custom:legacy
     /// @notice Emitted whenever a withdrawal from L2 to L1 is initiated.
@@ -60,13 +61,24 @@ contract L2StandardBridge is StandardBridge, Semver {
     /// @custom:semver 1.1.1
     /// @notice Constructs the L2StandardBridge contract.
     /// @param _otherBridge Address of the L1StandardBridge.
+    /// @param _l1Domain Hyperlane domain of the L1.
+    /// @param _mailbox Hyperlane mailbox address.
+    /// @param _fastWithdrawalOwner Address of the fast withdrawal owner.
     constructor(
         address payable _otherBridge,
         uint32 _l1Domain,
-        address _mailbox
-    ) Semver(1, 1, 1) StandardBridge(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER), _otherBridge) {
+        address _mailbox,
+        address _fastWithdrawalOwner
+    )
+        Semver(1, 1, 1)
+        StandardBridge(
+            payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER),
+            _otherBridge,
+            _mailbox,
+            _fastWithdrawalOwner
+        )
+    {
         L1_DOMAIN = _l1Domain;
-        MAILBOX = IMailbox(_mailbox);
     }
 
     /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.
@@ -152,6 +164,15 @@ contract L2StandardBridge is StandardBridge, Semver {
         return address(OTHER_BRIDGE);
     }
 
+    /// @notice Enables an ERC20 token for fast withdrawals via the Mailbox. ISM should be configured
+    ///         on the L1StandardBridge if required.
+    function setTokenEnabledForMailboxWithdrawals(address _localToken, bool _value)
+        external
+        onlyFastWithdrawalOwner
+    {
+        mailboxWithdrawalsEnabled[_localToken] = _value;
+    }
+
     /// @custom:legacy
     /// @notice Internal function to initiate a withdrawal from L2 to L1 to a target account on L1.
     /// @param _l2Token     Address of the L2 token to withdraw.
@@ -169,21 +190,7 @@ contract L2StandardBridge is StandardBridge, Semver {
         bytes memory _extraData
     ) internal {
         if (_l2Token == Predeploys.LEGACY_ERC20_ETH) {
-            if (mailboxWithdrawalsEnabled[address(0)]) {
-                MAILBOX.dispatch(
-                    L1_DOMAIN,
-                    TypeCasts.addressToBytes32(address(OTHER_BRIDGE)),
-                    abi.encodeWithSelector(
-                        this.finalizeBridgeETH.selector,
-                        _from,
-                        _to,
-                        _amount,
-                        _extraData
-                    )
-                );
-            } else {
-                _initiateBridgeETH(_from, _to, _amount, _minGasLimit, _extraData);
-            }
+            _initiateBridgeETH(_from, _to, _amount, _minGasLimit, _extraData);
         } else {
             address l1Token = OptimismMintableERC20(_l2Token).l1Token();
             if (mailboxWithdrawalsEnabled[_l2Token]) {
@@ -286,12 +293,5 @@ contract L2StandardBridge is StandardBridge, Semver {
     ) internal override {
         emit DepositFinalized(_remoteToken, _localToken, _from, _to, _amount, _extraData);
         super._emitERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
-    }
-
-    // address(0) == ETH
-    mapping(address => bool) public mailboxWithdrawalsEnabled;
-
-    function registerTokenForMailboxWithdrawals(address _localToken) public {
-        mailboxWithdrawalsEnabled[_localToken] = true;
     }
 }

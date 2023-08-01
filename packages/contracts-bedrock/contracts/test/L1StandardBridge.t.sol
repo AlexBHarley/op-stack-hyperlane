@@ -645,6 +645,8 @@ contract L1StandardBridge_MailboxWithdrawal_Test is Bridge_Initializer {
 
     function test_ismRouting() external {
         NoopIsm ism = new NoopIsm();
+
+        vm.prank(address(0));
         L1Bridge.setWithdrawalIsm(address(L1Token), address(ism));
 
         bytes memory body = abi.encodeWithSelector(

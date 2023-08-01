@@ -459,7 +459,8 @@ contract Deploy is Deployer {
 
         L1StandardBridge bridge = new L1StandardBridge({
             _messenger: payable(l1CrossDomainMessengerProxy),
-            _mailbox: mailboxProxy
+            _mailbox: mailboxProxy,
+            _fastWithdrawalOwner: address(msg.sender)
         });
 
         require(address(bridge.MESSENGER()) == l1CrossDomainMessengerProxy);
@@ -782,6 +783,8 @@ contract Deploy is Deployer {
         }
         ism.setThreshold(uint32(cfg.l2ChainID()), len(cfg.hyperlaneValidators));
         console.log("LegacyMultisigIsm enrolled %s validators", len(cfg.hyperlaneValidators));
+
+        ism.transferOwnership(msg.sender);
     }
 
     /// @notice Transfer ownership of the ProxyAdmin contract to the final system owner

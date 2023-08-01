@@ -4,7 +4,6 @@ pragma solidity 0.8.15;
 import {
     AbstractRoutingIsm
 } from "@hyperlane-xyz/core/contracts/isms/routing/AbstractRoutingIsm.sol";
-import { IMailbox } from "@hyperlane-xyz/core/contracts/interfaces/IMailbox.sol";
 import {
     IInterchainSecurityModule
 } from "@hyperlane-xyz/core/contracts/interfaces/IInterchainSecurityModule.sol";
@@ -29,7 +28,7 @@ import { SafeCall } from "../libraries/SafeCall.sol";
 contract L1StandardBridge is StandardBridge, Semver, AbstractRoutingIsm {
     using Message for bytes;
 
-    IMailbox public immutable MAILBOX;
+    /// @notice Mapping of tokens to ISM for fast withdrawals via the Mailbox contract
     mapping(address => address) public withdrawalIsms;
 
     /// @custom:legacy
@@ -95,12 +94,21 @@ contract L1StandardBridge is StandardBridge, Semver, AbstractRoutingIsm {
     /// @custom:semver 1.1.1
     /// @notice Constructs the L1StandardBridge contract.
     /// @param _messenger Address of the L1CrossDomainMessenger.
-    constructor(address payable _messenger, address _mailbox)
+    /// @param _mailbox Address of the local Hyperlane Mailbox.
+    /// @param _fastWithdrawalOwner Address of the fast withdrawal owner.
+    constructor(
+        address payable _messenger,
+        address _mailbox,
+        address _fastWithdrawalOwner
+    )
         Semver(1, 1, 1)
-        StandardBridge(_messenger, payable(Predeploys.L2_STANDARD_BRIDGE))
-    {
-        MAILBOX = IMailbox(_mailbox);
-    }
+        StandardBridge(
+            _messenger,
+            payable(Predeploys.L2_STANDARD_BRIDGE),
+            _mailbox,
+            _fastWithdrawalOwner
+        )
+    {}
 
     /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.
     receive() external payable override onlyEOA {
@@ -263,10 +271,6 @@ contract L1StandardBridge is StandardBridge, Semver, AbstractRoutingIsm {
             ism = withdrawalIsms[_localToken];
         }
 
-        if (_selector == this.finalizeBridgeETH.selector) {
-            ism = withdrawalIsms[address(0)];
-        }
-
         // address(0) will fallback to the Mailbox's default ISM
         return IInterchainSecurityModule(ism);
     }
@@ -281,24 +285,18 @@ contract L1StandardBridge is StandardBridge, Semver, AbstractRoutingIsm {
 
         (bytes4 _selector, bytes memory _calldata) = this.decodeCalldata(_messageBody);
 
-        if (_selector == this.finalizeBridgeERC20.selector) {
-            (address _localToken, address _remoteToken, , address _to, uint256 _amount) = abi
-                .decode(_calldata, (address, address, address, address, uint256));
-            _withdrawOrMintToken(_localToken, _remoteToken, _to, _amount);
-            return;
-        }
+        require(_selector == this.finalizeBridgeERC20.selector, "invalid selector");
 
-        if (_selector == this.finalizeBridgeETH.selector) {
-            (, address _to, uint256 _amount) = abi.decode(_calldata, (address, address, uint256));
-            bool success = SafeCall.call(_to, gasleft(), _amount, hex"");
-            require(success, "L1StandardBridge: ETH transfer failed");
-            return;
-        }
-
-        revert("invalid selector");
+        (address _localToken, address _remoteToken, , address _to, uint256 _amount) = abi.decode(
+            _calldata,
+            (address, address, address, address, uint256)
+        );
+        _withdrawOrMintToken(_localToken, _remoteToken, _to, _amount);
     }
 
-    function setWithdrawalIsm(address _localToken, address _ism) external {
+    /// @notice Sets the ISM to use for fast withdrawals via the Mailbox. Withdrawals must first
+    ///         be enabled on the L2StandardBridge.
+    function setWithdrawalIsm(address _localToken, address _ism) external onlyFastWithdrawalOwner {
         withdrawalIsms[_localToken] = _ism;
     }
 

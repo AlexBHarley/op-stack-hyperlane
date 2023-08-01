@@ -41,12 +41,13 @@
   "governanceTokenOwner": "0xBcd4042DE499D14e55001CcbB24a551F3b954096",
   "eip1559Denominator": 8,
   "eip1559Elasticity": 2,
-  "l1GenesisBlockTimestamp": "0x64c6aaa5",
+  "l1GenesisBlockTimestamp": "0x64c8e6c1",
   "l1StartingBlockTag": "earliest",
   "l2GenesisRegolithTimeOffset": "0x0",
   "faultGameAbsolutePrestate": 140,
   "faultGameMaxDepth": 4,
   "hyperlaneValidators": [
     "0xF0A00BfcffB30a8aFc46b3C709dC5895BBA34E59"
-  ]
+  ],
+  "fastWithdrawalOwner": "0x97627584F58EC2C04421307A841Aed9038dF75fc"
 }

@@ -460,7 +460,7 @@ contract Deploy is Deployer {
         L1StandardBridge bridge = new L1StandardBridge({
             _messenger: payable(l1CrossDomainMessengerProxy),
             _mailbox: mailboxProxy,
-            _fastWithdrawalOwner: address(msg.sender)
+            _fastWithdrawalOwner: cfg.fastWithdrawalOwner()
         });
 
         require(address(bridge.MESSENGER()) == l1CrossDomainMessengerProxy);
@@ -778,11 +778,12 @@ contract Deploy is Deployer {
         address addr = mustGetAddress("HyperlaneDefaultIsm");
         LegacyMultisigIsm ism = LegacyMultisigIsm(addr);
 
-        for (uint256 i = 0; i < len(cfg.hyperlaneValidators); i++) {
-            ism.enrollValidator(uint32(cfg.l2ChainID()), cfg.hyperlaneValidators[i]);
+        address[] memory validators = cfg.getHyperlaneValidators();
+        for (uint256 i = 0; i < validators.length; i++) {
+            ism.enrollValidator(uint32(cfg.l2ChainID()), validators[i]);
         }
-        ism.setThreshold(uint32(cfg.l2ChainID()), len(cfg.hyperlaneValidators));
-        console.log("LegacyMultisigIsm enrolled %s validators", len(cfg.hyperlaneValidators));
+        ism.setThreshold(uint32(cfg.l2ChainID()), uint8(validators.length));
+        console.log("LegacyMultisigIsm enrolled %s validators", validators.length);
 
         ism.transferOwnership(msg.sender);
     }

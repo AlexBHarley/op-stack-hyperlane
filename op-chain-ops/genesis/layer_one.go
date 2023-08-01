@@ -367,6 +367,7 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 			Args: []interface{}{
 				predeploys.DevL1CrossDomainMessengerAddr,
 				config.MailboxProxy,
+				config.FastWithdrawalOwner,
 			},
 		},
 		{
@@ -441,6 +442,7 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			backend,
 			deployment.Args[0].(common.Address),
 			deployment.Args[1].(common.Address),
+			deployment.Args[2].(common.Address),
 		)
 	case "OptimismMintableERC20Factory":
 		_, tx, _, err = bindings.DeployOptimismMintableERC20Factory(

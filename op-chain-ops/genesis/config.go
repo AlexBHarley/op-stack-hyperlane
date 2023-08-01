@@ -101,7 +101,9 @@ type DeployConfig struct {
 	SequencerFeeVaultWithdrawalNetwork uint8 `json:"sequencerFeeVaultWithdrawalNetwork"`
 	// L1StandardBridge proxy address on L1
 	L1StandardBridgeProxy common.Address `json:"l1StandardBridgeProxy"`
+	// HyperlaneOptimismMessageHook proxy address on L1
 	HyperlaneOptimismMessageHookProxy common.Address `json:"hyperlaneOptimismMessageHookProxy"`
+	// Mailbox proxy address on L1
 	MailboxProxy common.Address `json:"mailboxProxy"`
 	// L1CrossDomainMessenger proxy address on L1
 	L1CrossDomainMessengerProxy common.Address `json:"l1CrossDomainMessengerProxy"`
@@ -130,6 +132,8 @@ type DeployConfig struct {
 	EIP1559Denominator uint64 `json:"eip1559Denominator"`
 
 	FundDevAccounts bool `json:"fundDevAccounts"`
+
+	FastWithdrawalOwner common.Address `json:"fastWithdrawalOwner"`
 }
 
 // Check will ensure that the config is sane and return an error when it is not
@@ -447,6 +451,7 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.
 		"otherBridge": config.L1StandardBridgeProxy,
 		"l1Domain": config.L1ChainID,
 		"mailbox": predeploys.HyperlaneMailboxAddr,
+		"fastWithdrawalOwner": config.FastWithdrawalOwner,
 	}
 	immutable["L2CrossDomainMessenger"] = immutables.ImmutableValues{
 		"otherMessenger": config.L1CrossDomainMessengerProxy,

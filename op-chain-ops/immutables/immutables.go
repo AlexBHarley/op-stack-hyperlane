@@ -88,6 +88,7 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 				immutable["L2StandardBridge"]["otherBridge"],
 				immutable["L2StandardBridge"]["l1Domain"],
 				immutable["L2StandardBridge"]["mailbox"],
+				immutable["L2StandardBridge"]["fastWithdrawalOwner"],
 			},
 		},
 		{
@@ -216,7 +217,11 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		if !ok {
 			return nil, fmt.Errorf("invalid type for mailbox")
 		}
-		_, tx, _, err = bindings.DeployL2StandardBridge(opts, backend, otherBridge, uint32(l1Domain), mailbox)
+		fastWithdrawalOwner, ok := deployment.Args[3].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for fastWithdrawalOwner")
+		}
+		_, tx, _, err = bindings.DeployL2StandardBridge(opts, backend, otherBridge, uint32(l1Domain), mailbox, fastWithdrawalOwner)
 	case "L2ToL1MessagePasser":
 		// No arguments required for L2ToL1MessagePasser
 		_, tx, _, err = bindings.DeployL2ToL1MessagePasser(opts, backend)

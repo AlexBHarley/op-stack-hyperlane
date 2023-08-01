@@ -48,6 +48,7 @@ contract DeployConfig is Script {
     uint256 public faultGameAbsolutePrestate;
     uint256 public faultGameMaxDepth;
     address[] public hyperlaneValidators;
+    address public fastWithdrawalOwner;
 
     constructor(string memory _path) {
         console.log("DeployConfig: reading file %s", _path);
@@ -86,6 +87,7 @@ contract DeployConfig is Script {
         eip1559Elasticity = stdJson.readUint(_json, "$.eip1559Elasticity");
         l2GenesisRegolithTimeOffset = stdJson.readUint(_json, "$.l2GenesisRegolithTimeOffset");
         hyperlaneValidators = stdJson.readAddressArray(_json, "$.hyperlaneValidators");
+        fastWithdrawalOwner = stdJson.readAddress(_json, "$.fastWithdrawalOwner");
 
         if (block.chainid == 900) {
             faultGameAbsolutePrestate = stdJson.readUint(_json, "$.faultGameAbsolutePrestate");
@@ -114,11 +116,27 @@ contract DeployConfig is Script {
             string[] memory cmd = new string[](3);
             cmd[0] = Executables.bash;
             cmd[1] = "-c";
-            cmd[2] = string.concat("cast block ", vm.toString(tag), " --json | ", Executables.jq, " .timestamp");
+            cmd[2] = string.concat(
+                "cast block ",
+                vm.toString(tag),
+                " --json | ",
+                Executables.jq,
+                " .timestamp"
+            );
             bytes memory res = vm.ffi(cmd);
             return stdJson.readUint(string(res), "");
         }
         return uint256(_l2OutputOracleStartingTimestamp);
+    }
+
+    function getHyperlaneValidators() public returns (address[] memory) {
+        address[] memory validators = new address[](hyperlaneValidators.length);
+
+        for (uint256 i = 0; i < hyperlaneValidators.length; i++) {
+            validators[i] = hyperlaneValidators[i];
+        }
+
+        return validators;
     }
 
     function _getBlockByTag(string memory _tag) internal returns (bytes32) {

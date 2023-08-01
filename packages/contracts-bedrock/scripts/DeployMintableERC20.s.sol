@@ -27,7 +27,7 @@ contract Deploy is Script {
         console.log("Deployed mintable erc20 to", erc20);
 
         L2StandardBridge bridge = L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE));
-        bridge.registerTokenForMailboxWithdrawals(erc20);
+        bridge.setTokenEnabledForMailboxWithdrawals(erc20, true);
 
         vm.stopBroadcast();
     }
